@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const drinksRouter = require('./routes/drinks');
+require('./redis');
 
 const app = express();
 const PORT = 3000;

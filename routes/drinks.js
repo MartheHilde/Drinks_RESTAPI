@@ -1,44 +1,89 @@
+var client = require('../redis.js');
 const express = require('express');
 const fs = require('fs');
 
 const drinksDataPath = './data/drinks.json';
 const drinksRouter = express.Router();
 
-// GET all drinks
-drinksRouter.get('/', (req, res) => {
-fs.readFile(drinksDataPath, 'utf8', (err, data) => {
-if (err) {
-    console.error(err);
-    res.sendStatus(500);
-    return;
+async function cache(req, res, next) {
+const data = await client.get(req.originalUrl);
+if (data !== null) {
+    res.render('tutorials', {tutorials: JSON.parse(data)});
+} else {
+    next();
+}
 }
 
-res.json(JSON.parse(data));
+async function getDrinksFromRedis(req) {
+const drinks = await client.get(req.originalUrl);
+if (drinks !== null) {
+    return JSON.parse(drinks);
+} else {
+    return null;
+}
+}
+
+async function setDrinksInRedis(req, drinks) {
+await client.set(req.originalUrl, JSON.stringify(drinks));
+}
+
+
+// GET all drinks
+drinksRouter.get('/', async (req, res) => {
+let drinks = await getDrinksFromRedis(req);
+if (drinks === null) {
+    fs.readFile(drinksDataPath, 'utf8', async (err, data) => {
+    if (err) {
+        console.error(err);
+        res.sendStatus(500);
+        return;
+    }
+
+    drinks = JSON.parse(data);
+    await setDrinksInRedis(req, drinks);
+
+    res.json(drinks);
+    });
+} else {
+    res.json(drinks);
+}
 });
-});
+
 
 // GET drink by ID
-drinksRouter.get('/:id', (req, res) => {
+drinksRouter.get('/:id', cache, async function(req, res) {
 const drinkId = Number(req.params.id);
+let drinks = await getDrinksFromRedis(req);
+if (drinks === null) {
+    fs.readFile(drinksDataPath, 'utf8', async (err, data) => {
+    if (err) {
+        console.error(err);
+        res.sendStatus(500);
+        return;
+    }
 
-fs.readFile(drinksDataPath, 'utf8', (err, data) => {
-if (err) {
-    console.error(err);
-    res.sendStatus(500);
-    return;
-}
+    drinks = JSON.parse(data);
+    await setDrinksInRedis(req, drinks);
 
-const drinks = JSON.parse(data);
-const drink = drinks.find((d) => d.id === drinkId);
+    const drink = drinks.find((d) => d.id === drinkId);
+    if (!drink) {
+        res.sendStatus(404);
+        return;
+    }
 
-if (!drink) {
+    res.json(drink);
+    });
+} else {
+    const drink = drinks.find((d) => d.id === drinkId);
+    if (!drink) {
     res.sendStatus(404);
     return;
-}
+    }
 
-res.json(drink);
+    res.json(drink);
+}
 });
-});
+
 
 // POST a new drink
 drinksRouter.post('/', (req, res) => {

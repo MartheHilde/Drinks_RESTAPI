@@ -13,3 +13,7 @@ unique id (number);
 list of ingredients (array of strings);
 description (string).
 ```
+
+#### Drinks stored in Redis
+You need to store data about the drinks not in local JSON, but on Redis (cached, keep the JSON, but make it cached).
+Methods we used so far (client.get and client.set) will be enough to implement it.
